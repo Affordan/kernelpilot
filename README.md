@@ -1,52 +1,95 @@
 # KernelPilot
 
-KernelPilot is an out-of-tree DeepSeek Harness bundle for execution-feedback-driven CUDA kernel optimization. It exposes compilation, correctness, repeated benchmarking, Nsight Compute profiling, and checkpointed source patching as guarded tools. A correctness-first evaluator selects only stable measured improvements.
+KernelPilot 是基于 DeepSeek Harness 的 CUDA Kernel 自动优化工具。当前只提供命令行，不包含 Web 服务或网页界面。
 
-The repository targets DeepSeek Harness `0.1.0-rc.7`, verified against upstream commit `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca` from 2026-08-17. It does not modify Harness core.
+## DeepSeek Harness 是什么
 
-## What works
+DeepSeek Harness 是 Agent 运行时，不是模型，也不是 Web 框架。它负责：
 
-- Strict `OptimizationTask`, profiler, candidate, and result schemas.
-- Best-of-2/3 candidate orchestration with compile and correctness hard gates.
-- Robust metric-name-based NCU CSV parser with explicit missing-metric fallback.
-- Allowlisted argv subprocesses, workspace path confinement, timeouts, isolated candidate checkpoints, and rollback.
-- Seven Harness tools, including atomic `prepare_baseline` and authoritative `evaluate_candidate`, backed by real local execution.
-- Nine progressively loaded CUDA skills.
-- Append-only optimization event log with replay, while Harness Session records model, tool, and subagent activity.
-- A Windows-aware local backend with automatic MSVC discovery and conditional real-GPU reduction and elementwise tests.
+- 调用大模型；
+- 运行 Agent Loop；
+- 注册和执行工具；
+- 加载 Skills；
+- 调度子智能体；
+- 保存会话；
+- 管理沙箱和权限。
 
-## Quick start
+KernelPilot 作为 Harness 插件，提供 CUDA 编译、正确性验证、Benchmark、Nsight Compute 分析、源码补丁和候选评估能力。
 
-Requires Node 22.19+, pnpm 11, an NVIDIA GPU, CUDA Toolkit with `nvcc`, Nsight Compute with `ncu`, and on Windows Visual Studio C++ Build Tools. KernelPilot discovers the x64 MSVC environment automatically.
+## 工作流程
+
+```text
+读取任务
+→ 编译并验证基线
+→ Benchmark 和 NCU 分析
+→ 生成多个优化候选
+→ 隔离应用补丁
+→ 编译和正确性验证
+→ 重复 Benchmark
+→ 选择最快的有效候选
+```
+
+性能结论只来自本机真实运行结果。
+
+## 环境要求
+
+- Node.js 22.19+
+- pnpm 11
+- NVIDIA GPU
+- CUDA Toolkit：`nvcc`
+- Nsight Compute：`ncu`
+- Windows：Visual Studio C++ Build Tools
+
+Windows 下会自动发现 MSVC 和 Nsight Compute。
+
+## 安装
 
 ```powershell
 pnpm install
+```
+
+## 检查本机环境
+
+无需模型密钥：
+
+```powershell
 pnpm baseline examples/reduction/task.json
 ```
 
-This compiles the declared source with NVCC, validates it, and prints repeated local benchmark samples. No model or API credential is needed for this baseline check.
+该命令会完成真实编译、正确性验证和重复 Benchmark。
 
-To run agent-driven optimization, configure the provider environment expected by the DeepSeek Harness headless profile in `.env`, then run:
+## 启动自动优化
+
+在 `.env` 中配置：
+
+```text
+DEEPSEEK_API_KEY=...
+DEEPSEEK_BASE_URL=...
+```
+
+然后运行：
 
 ```powershell
 pnpm optimize:reduction
-# or
 pnpm optimize:elementwise
 ```
 
-The launcher loads `.env` into memory, builds the plugin, and starts Harness from `.kernelpilot/launch` so Harness does not parse the project file itself. It never rewrites `.env`. Candidate sources, diffs, checkpoints, NCU reports, and session data stay under `.kernelpilot/`; original example sources are not edited.
+启动器只在内存中读取 `.env`，不会修改该文件。
 
-## Harness loading
+## 输出目录
 
-The package also exposes an additive bundle patch for an existing Harness installation:
+所有运行产物位于 `.kernelpilot/`：
 
-```text
-dsh --profile headless --patch ./cordis.patch.yml "Optimize examples/reduction/task.json. Profile the baseline, ask two independent subagents for evidence-backed hypotheses, apply each patch in its own candidate, then compile, validate, benchmark, and select only through the acceptance gate."
-```
+- `candidates/`：候选源码；
+- `checkpoints/`：源码检查点；
+- `diffs/`：候选补丁；
+- `reports/`：NCU 报告；
+- `workspaces/`：编译目录；
+- `launch/`：Harness 启动目录。
 
-The existing headless/base bundles provide the native Agent Loop, Session persistence, approval policy, sandbox, Skills service, and Subagent providers. KernelPilot adds domain tools and skills. See [architecture](docs/architecture.md) for the verified API mapping and current preview limitations.
+原始示例源码不会被修改。
 
-## Verification
+## 测试
 
 ```powershell
 pnpm typecheck
@@ -56,12 +99,23 @@ pnpm test:gpu
 pnpm build
 ```
 
-`test:gpu` self-skips without `nvcc` and `nvidia-smi`; when available, it uses the production local backend to compile, validate, and benchmark both examples. Performance depends on the GPU, clocks, workload, toolchain, and generated candidate, so only results printed by a local run should be treated as measurements.
+`test:gpu` 会使用真实 GPU 编译、验证、Benchmark 和 NCU。缺少 CUDA 环境时自动跳过。
 
-## Task protocol
+## 任务文件
 
-[`examples/reduction/task.json`](examples/reduction/task.json) declares source files, exact argv commands, tolerances, repeated benchmark policy, NCU metrics, acceptance thresholds, and search budget. Commands are never shell strings. Benchmark executables print `{"latency_ms": number}`; validators print max absolute/relative error and mismatch count as JSON.
+[examples/reduction/task.json](examples/reduction/task.json) 定义：
 
-## Development
+- 源码和 Kernel 名称；
+- NVCC 命令和编译参数；
+- 正确性容差；
+- Benchmark 次数和超时；
+- NCU 指标；
+- 最低加速比；
+- 候选数量和总预算。
 
-See [AGENTS.md](AGENTS.md) for commands and Definition of Done. Design references: [tool design](docs/tool-design.md), [skills](docs/skills.md), and [evaluation](docs/evaluation.md).
+更多说明：
+
+- [架构](docs/architecture.md)
+- [工具](docs/tool-design.md)
+- [Skills](docs/skills.md)
+- [评估规则](docs/evaluation.md)

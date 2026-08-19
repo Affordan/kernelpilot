@@ -1,58 +1,63 @@
-# Architecture
+# 架构
 
-## Verified upstream surface
+KernelPilot 基于 DeepSeek Harness `0.1.0-rc.7`，参考上游提交 `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`。
 
-KernelPilot was designed from DeepSeek Harness `0.1.0-rc.7` source at commit `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`, not from remembered APIs.
+## Harness 能力
 
-| Need | rc.7 public mechanism | KernelPilot use |
+| 能力 | Harness 机制 | KernelPilot 用法 |
 |---|---|---|
-| Composition | Cordis plugin exports `name`, `inject`, and `apply`; `ctx.effect`-owned registries | `src/harness/plugin.ts` is loaded beside core plugins |
-| Distribution | `package.json.dsh.bundle.patch` plus `cordis.patch.yml` | Additive bundle inserts one plugin row |
-| Tools | `ctx.tools.register(ToolDefinition)`; schema enters prompt; calls traverse pre/execute/post waterfalls | Seven domain tools return canonical JSON values; evaluation uses recorded tool results |
-| Skills | `ctx.skills.register(SkillRegistration)`; full bodies load on demand | Nine CUDA skills are registered, never permanently injected into the persona |
-| Subagents | `ctx.subagents` providers plus `@deepseek-ai/dsh-tool-subagent`; headless bundle offers spawn/fork providers | Orchestrator prompt delegates independent hypotheses through native subagent tools |
-| Sandbox | `ctx.sandbox`, sandbox policy, filesystem/subprocess providers, approvals | Harness confines the agent; KernelPilot additionally uses argv allowlists and path checks |
-| Session | append-only Session events and persistence; tool/subagent activity is already durable | Native trajectory plus plugin-owned optimization event stream |
+| 插件 | Cordis `name`、`inject`、`apply` | 加载 `src/harness/plugin.ts` |
+| 分发 | Bundle Patch | 使用 `cordis.patch.yml` |
+| 工具 | `ctx.tools.register` | 注册 7 个 CUDA 工具 |
+| Skills | `ctx.skills.register` | 按需加载 9 个 CUDA Skills |
+| 子智能体 | Subagent/Fork | 生成独立优化假设 |
+| 沙箱 | Sandbox 和 Approval | 限制文件与进程权限 |
+| 会话 | Session | 保存模型和工具轨迹 |
 
-## Repository organization
+## 结构
 
 ```text
-Harness Agent Loop / native Subagents
-              |
-       KernelPilot plugin
-       /              \
- seven guarded tools  nine CUDA skills
-       |
- OptimizationEngine -- CandidatePlanner
-       |
-CandidateExecutionBackend
-       +-- nvcc / validator / benchmark / NCU processes
-       |
- correctness hard gate -> latency evaluator -> report
-       |
- append-only optimization JSONL
+DeepSeek Harness
+├── Agent Loop
+├── 子智能体
+├── KernelPilot 插件
+│   ├── 7 个受控工具
+│   └── 9 个 CUDA Skills
+└── Session
+
+KernelPilot 插件
+→ 本地执行后端
+→ NVCC / Validator / Benchmark / NCU
+→ 正确性门禁
+→ 性能评估
+→ 候选报告
 ```
 
-The domain core does not import Cordis. Tests can run without a model, API key, CUDA, or NCU. The Harness adapter imports only the public Cordis, Tool, and Skill packages.
+优化核心不依赖 Cordis。Harness 适配层只使用公开的 Tool、Skill 和 Cordis API。
 
-## Context policy
+## 上下文
 
-`buildOptimizationContext` includes current source, best metrics, diagnosis, the last three attempts, relevant loaded skills, objective, and remaining budget. Raw NCU reports and old source trees remain referenced on disk. This bounds prompt growth without discarding audit data.
+每轮只提供：
 
-## Session adjustment and uncertainty
+- 当前源码；
+- 当前最佳指标；
+- 性能诊断；
+- 最近三次尝试；
+- 相关 Skills；
+- 优化目标；
+- 剩余预算。
 
-rc.7 declares `SessionEventMap` through TypeScript declaration merging, but persistence validates event names against a build-time generated `KNOWN_SESSION_EVENT_TYPES` set. There is no public out-of-tree runtime registration API and `Session.append()` cannot mark a newly appended plugin event envelope `ignorable: true`. Treating custom names as normal Session events would therefore create logs a stock rc.7 build can refuse to reload.
+完整源码、NCU 原始报告和历史记录保存在磁盘。
 
-KernelPilot uses both supported layers:
+## 会话
 
-1. Harness Session records every user/model/tool/subagent event and therefore the model-visible trajectory.
-2. `JsonlEventStore` records the optimization domain events, source diffs, metrics, validations, and decisions and can replay task state.
+Harness Session 保存模型、工具和子智能体轨迹。
 
-If upstream adds a public Session event vocabulary registry, the event sink can be replaced without changing the orchestrator. Until then, the dual log is the safe out-of-tree design.
+`JsonlEventStore` 保存优化事件、补丁、性能数据、验证结果和评估结论。两者分开是因为 rc.7 不支持插件动态注册新的 Session 事件类型。
 
-## Remaining preview uncertainties
+## 已知限制
 
-- Package/version APIs are developer-preview and may change after rc.7.
-- Profile installation UX may evolve; the bundle metadata and patch format are current rc.7 contracts.
-- NCU metric availability varies by GPU and version. The parser aliases semantic metrics and reports missing fields rather than inventing values.
-- Model-produced patches require a planner prompt/provider configuration. The keyless engine uses an injected deterministic planner to validate all execution and decision machinery.
+- Harness 仍处于预览阶段，API 可能变化；
+- NCU 指标随 GPU 和版本变化；
+- 当前没有 Web 服务；
+- 模型响应时间取决于上游服务。

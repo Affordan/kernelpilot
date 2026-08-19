@@ -1,9 +1,23 @@
-# Evaluation and search
+# 评估规则
 
-KernelPilot optimizes median kernel latency in version 0.1. Correctness and data validity are constraints, not weighted score terms.
+当前目标是降低 Kernel 延迟。
 
-For baseline latency `T0` and candidate latency `Tc`, speedup is `T0 / Tc`. A candidate is accepted only when compilation succeeds, correctness passes, repeated benchmark data is valid, speedup meets `minimumSpeedup`, and population variance does not exceed `maximumVariance`.
+设基线延迟为 `T0`，候选延迟为 `Tc`：
 
-Candidates are evaluated in isolated workspaces. The current engine asks for two or three proposals, bounded by `maxCandidates` and the overall timeout. An accepted result may become the comparison point for later proposals, while the final report always gives speedup relative to the original baseline. Rejected candidates and their exact reasons remain in the report and event log.
+```text
+speedup = T0 / Tc
+```
 
-KernelPilot has no simulated execution mode. Results come from the local NVCC-built executable and should record the GPU, CUDA, NCU, clocks/power conditions, input sizes, warmups, samples, variance, and raw report references. `evaluate_candidate` reads compile, validation, and benchmark results recorded by the tools, so the model cannot supply its own performance fields.
+候选必须同时满足：
+
+- 编译成功；
+- 正确性验证通过；
+- Benchmark 数据有效；
+- 加速比达到 `minimumSpeedup`；
+- 方差不超过 `maximumVariance`。
+
+候选在隔离目录中执行。最终加速比始终相对原始基线计算。失败原因会保存在报告和事件日志中。
+
+KernelPilot 没有模拟执行模式。所有结果来自本机 NVCC、GPU 和 NCU。
+
+`evaluate_candidate` 只读取工具已记录的编译、验证和 Benchmark 结果，模型不能自行填写性能数据。
