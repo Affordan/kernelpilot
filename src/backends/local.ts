@@ -8,6 +8,7 @@ import { parseNcuCsv } from '../ncu/parser.js'
 import { applySourcePatch } from './patch.js'
 import { resolveInside, runCommand, validateTaskPaths } from './process.js'
 import { discoverMsvcEnvironment } from './windows-msvc.js'
+import { resolveNcuExecutable } from './windows-ncu.js'
 
 /** Real nvcc/validator/benchmark/NCU backend operating in isolated workspaces. */
 export class LocalExecutionBackend implements CandidateExecutionBackend {
@@ -98,6 +99,7 @@ export class LocalExecutionBackend implements CandidateExecutionBackend {
 
   async profile(task: OptimizationTask, candidateId: string, signal: AbortSignal): Promise<ProfilerObservation> {
     const root = this.root(task, candidateId)
+    const profilerExecutable = await resolveNcuExecutable(task.profile.executable, this.stateRoot, signal)
     const reportRoot = resolveInside(this.stateRoot, path.join('reports', task.id))
     await mkdir(reportRoot, { recursive: true })
     const reportBase = resolveInside(reportRoot, candidateId)
@@ -107,7 +109,7 @@ export class LocalExecutionBackend implements CandidateExecutionBackend {
     if (task.profile.metrics.length > 0) args.push('--metrics', task.profile.metrics.join(','))
     args.push(task.benchmark.command.executable, ...task.benchmark.command.args)
     const command: CommandSpec = {
-      executable: task.profile.executable,
+      executable: profilerExecutable,
       args,
       cwd: task.benchmark.command.cwd,
       environment: task.benchmark.command.environment,

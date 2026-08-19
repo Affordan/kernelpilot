@@ -7,6 +7,9 @@ import { optimizationTaskSchema } from '../../src/domain/schema.js'
 
 const hasNvcc = spawnSync('nvcc', ['--version'], { windowsHide: true }).status === 0
 const hasGpu = spawnSync('nvidia-smi', ['--query-gpu=name', '--format=csv,noheader'], { windowsHide: true }).status === 0
+const hasNcu = process.platform === 'win32'
+  ? spawnSync('where.exe', ['ncu.bat'], { windowsHide: true }).status === 0
+  : spawnSync('ncu', ['--version'], { windowsHide: true }).status === 0
 const describeGpu = hasNvcc && hasGpu ? describe : describe.skip
 const outputRoots: string[] = []
 
@@ -37,6 +40,13 @@ describeGpu('LocalExecutionBackend CUDA examples', () => {
       expect(benchmark.valid).toBe(true)
       expect(benchmark.samplesMs).toHaveLength(task.benchmark.repeat)
       expect(benchmark.medianMs).toBeGreaterThan(0)
+
+      if (hasNcu && example === 'reduction') {
+        const profile = await backend.profile(task, 'baseline', signal)
+        expect(profile.kernelName).toContain(task.source.kernelName)
+        expect(profile.rawReportPath).toMatch(/\.ncu-rep$/)
+        expect(profile.durationMs).toBeGreaterThan(0)
+      }
     }, 240_000)
   }
 })

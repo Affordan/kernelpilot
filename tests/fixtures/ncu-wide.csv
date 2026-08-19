@@ -1,0 +1,5 @@
+==PROF== Connected to process 42
+"ID","Kernel Name","gpu__time_duration.sum","gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed","sm__warps_active.avg.pct_of_peak_sustained_active","launch__registers_per_thread","launch__shared_mem_per_block"
+"","","ns","%","%","register/thread","byte/block"
+"0","reduce_sum","44,000","24.0","88.0","16","1,024"
+"1","reduce_sum","46,000","26.0","90.0","16","1,024"
