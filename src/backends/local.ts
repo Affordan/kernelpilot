@@ -11,7 +11,6 @@ import { discoverMsvcEnvironment } from './windows-msvc.js'
 
 /** Real nvcc/validator/benchmark/NCU backend operating in isolated workspaces. */
 export class LocalExecutionBackend implements CandidateExecutionBackend {
-  readonly synthetic = false
   private readonly workspaceRoot: string
   private readonly stateRoot: string
   private readonly candidateRoots = new Map<string, string>()
@@ -172,4 +171,3 @@ function isValidationProtocol(value: unknown): value is { max_absolute_error: nu
     && 'max_relative_error' in value && typeof value.max_relative_error === 'number' && value.max_relative_error >= 0
     && 'mismatch_count' in value && typeof value.mismatch_count === 'number' && Number.isInteger(value.mismatch_count) && value.mismatch_count >= 0
 }
-

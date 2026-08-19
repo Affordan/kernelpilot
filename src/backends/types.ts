@@ -2,7 +2,6 @@ import type { BenchmarkResult, CompileResult, Diagnosis, OptimizationTask, Profi
 import type { CandidateProposal } from '../domain/types.js'
 
 export interface CandidateExecutionBackend {
-  readonly synthetic: boolean
   initialize(task: OptimizationTask, signal: AbortSignal): Promise<void>
   prepareCandidate(task: OptimizationTask, proposal: CandidateProposal, signal: AbortSignal): Promise<void>
   compile(task: OptimizationTask, candidateId: string, signal: AbortSignal): Promise<CompileResult>

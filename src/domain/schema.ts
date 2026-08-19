@@ -62,7 +62,6 @@ export const benchmarkResultSchema = z.object({
   variance: z.number().nonnegative(),
   effectiveBandwidthGbps: z.number().nonnegative().optional(),
   valid: z.boolean(),
-  synthetic: z.boolean().default(false),
 })
 
 export const profilerObservationSchema = z.object({

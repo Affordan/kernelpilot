@@ -6,7 +6,7 @@ function quantile(sorted: readonly number[], probability: number): number {
 }
 
 /** Calculate stable descriptive statistics from positive latency samples. */
-export function summarizeSamples(samplesMs: readonly number[], bytesPerIteration?: number, synthetic = false): BenchmarkResult {
+export function summarizeSamples(samplesMs: readonly number[], bytesPerIteration?: number): BenchmarkResult {
   if (samplesMs.length === 0 || samplesMs.some(value => !Number.isFinite(value) || value <= 0)) {
     throw new TypeError('benchmark samples must be non-empty, finite, and positive')
   }
@@ -27,7 +27,5 @@ export function summarizeSamples(samplesMs: readonly number[], bytesPerIteration
     variance,
     ...(bytesPerIteration === undefined ? {} : { effectiveBandwidthGbps: bytesPerIteration / (medianMs * 1e6) }),
     valid: Number.isFinite(medianMs) && Number.isFinite(variance),
-    synthetic,
   }
 }
-

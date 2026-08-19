@@ -25,7 +25,6 @@ export interface OptimizationCandidate extends CandidateProposal {
 
 export interface OptimizationReport {
   readonly taskId: string
-  readonly mock: boolean
   readonly baseline: BenchmarkResult
   readonly diagnosis: Diagnosis
   readonly candidates: readonly OptimizationCandidate[]
@@ -34,4 +33,3 @@ export interface OptimizationReport {
   readonly speedup: number
   readonly eventLogPath: string
 }
-

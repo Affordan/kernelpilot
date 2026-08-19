@@ -99,10 +99,9 @@ export class OptimizationEngine {
     }
 
     const speedup = baseline.medianMs / bestBenchmark.medianMs
-    await events.append('optimization/task_finished', task.id, { bestCandidateId, speedup, synthetic: backend.synthetic })
+    await events.append('optimization/task_finished', task.id, { bestCandidateId, speedup })
     return {
       taskId: task.id,
-      mock: backend.synthetic,
       baseline,
       diagnosis,
       candidates,
