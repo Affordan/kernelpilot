@@ -15,7 +15,7 @@ export async function discoverMsvcEnvironment(stateRoot: string, signal: AbortSi
   await mkdir(stateRoot, { recursive: true })
   const query: CommandSpec = {
     executable: VSWHERE,
-    args: ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'],
+    args: ['-latest', '-prerelease', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'],
     cwd: '.',
     environment: {},
   }
@@ -46,4 +46,3 @@ function parseEnvironment(text: string): Readonly<Record<string, string>> {
   }
   return environment
 }
-
