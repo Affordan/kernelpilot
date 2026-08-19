@@ -79,12 +79,12 @@ Follow this execution protocol exactly:
 You have a strict budget of 16 parent tool calls. Do not retry the same failed operation more than once.
 1. Call prepare_baseline once for candidate_id "baseline". Treat its real compile, validation, benchmark, and profiler results as authoritative; do not repeat those baseline operations.
 2. Use the profiler evidence and load only relevant CUDA skills.
-3. Ask ${candidateCount} independent subagents for different optimization hypotheses. Each must return a hypothesis, expected metric effect, risks, selected skills, and a unified diff touching only task-declared source files.
+3. Call the one-shot subagent_fork tool ${candidateCount} times for independent optimization hypotheses. Do not use the background subagent tool. Wait for every fork result before continuing. Each result must include a hypothesis, expected metric effect, risks, selected skills, and a unified diff touching only task-declared source files.
 4. For each proposal, call apply_source_patch with a unique candidate_id, then compile_cuda and validate_kernel. Run run_benchmark only after both succeed.
 5. Call evaluate_candidate for every fully measured candidate. Never infer acceptance or speedup yourself; the evaluator result is authoritative.
 6. Report baseline samples, profiler evidence, every candidate and rejection reason, the accepted best candidate if any, measured speedup, and final diff. Clearly state that all numbers came from this machine.
 
-Do not edit the original source tree directly. Do not fabricate metrics or continue after the task budget is exhausted.`
+Do not edit the original source tree directly. Do not fabricate metrics or continue after the task budget is exhausted. Do not finish while a subagent is still running or before every prepared candidate has reached an evaluator decision.`
   + `\n\nDeclared source snapshot:\n${sources}`
 }
 
