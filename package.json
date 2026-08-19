@@ -40,6 +40,7 @@
     "test": "vitest run --exclude tests/gpu/**",
     "test:gpu": "vitest run tests/gpu",
     "demo:mock": "tsx src/cli.ts demo-mock",
+    "baseline": "tsx src/cli.ts baseline",
     "start": "node dist/cli.js"
   },
   "dependencies": {

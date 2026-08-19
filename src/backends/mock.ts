@@ -13,6 +13,9 @@ const latencyByCandidate: Readonly<Record<string, readonly number[]>> = {
 export class MockExecutionBackend implements CandidateExecutionBackend {
   readonly synthetic = true
 
+  async initialize(_task: OptimizationTask, _signal: AbortSignal): Promise<void> {}
+  async prepareCandidate(_task: OptimizationTask, _proposal: CandidateProposal, _signal: AbortSignal): Promise<void> {}
+
   async compile(_task: OptimizationTask, candidateId: string, _signal: AbortSignal): Promise<CompileResult> {
     return {
       success: candidateId !== 'candidate-broken',
@@ -78,4 +81,3 @@ export class MockCandidatePlanner implements CandidatePlanner {
     return proposals.slice(0, count)
   }
 }
-

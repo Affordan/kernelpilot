@@ -31,6 +31,7 @@ export class OptimizationEngine {
   private async execute(task: OptimizationTask, signal: AbortSignal): Promise<OptimizationReport> {
     const { backend, planner, events } = this.dependencies
     await events.append('optimization/task_created', task.id, { task })
+    await backend.initialize(task, signal)
 
     const baselineCompile = await backend.compile(task, 'baseline', signal)
     if (!baselineCompile.success) throw new Error(`baseline compilation failed: ${baselineCompile.stderr}`)
@@ -55,6 +56,7 @@ export class OptimizationEngine {
     for (const proposal of proposals.slice(0, task.budget.maxCandidates)) {
       signal.throwIfAborted()
       await events.append('optimization/candidate_created', task.id, { candidate: proposal })
+      await backend.prepareCandidate(task, proposal, signal)
       const compile = await backend.compile(task, proposal.id, signal)
       await events.append('optimization/compile_finished', task.id, { candidateId: proposal.id, compile })
       if (!compile.success) {
@@ -111,4 +113,3 @@ export class OptimizationEngine {
     }
   }
 }
-

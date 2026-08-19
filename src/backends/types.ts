@@ -3,6 +3,8 @@ import type { CandidateProposal } from '../domain/types.js'
 
 export interface CandidateExecutionBackend {
   readonly synthetic: boolean
+  initialize(task: OptimizationTask, signal: AbortSignal): Promise<void>
+  prepareCandidate(task: OptimizationTask, proposal: CandidateProposal, signal: AbortSignal): Promise<void>
   compile(task: OptimizationTask, candidateId: string, signal: AbortSignal): Promise<CompileResult>
   validate(task: OptimizationTask, candidateId: string, signal: AbortSignal): Promise<ValidationResult>
   benchmark(task: OptimizationTask, candidateId: string, signal: AbortSignal): Promise<BenchmarkResult>
@@ -13,4 +15,3 @@ export interface CandidatePlanner {
   diagnose(task: OptimizationTask, baseline: BenchmarkResult, profile: ProfilerObservation, signal: AbortSignal): Promise<Diagnosis>
   propose(task: OptimizationTask, parentId: string, diagnosis: Diagnosis, count: number, signal: AbortSignal): Promise<readonly CandidateProposal[]>
 }
-

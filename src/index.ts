@@ -8,5 +8,5 @@ export * from './core/statistics.js'
 export * from './ncu/parser.js'
 export * from './backends/types.js'
 export * from './backends/mock.js'
+export * from './backends/local.js'
 export * from './backends/process.js'
-
