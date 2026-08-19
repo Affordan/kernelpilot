@@ -1,0 +1,8 @@
+# KernelPilot is an additive patch over a DeepSeek Harness profile.
+- insert:
+    - id: kernelpilot
+      name: '@kernelpilot/harness-bundle/harness'
+      inject: [tools, skills]
+      config:
+        workspaceRoot: !!js process.cwd()
+        stateRoot: .kernelpilot

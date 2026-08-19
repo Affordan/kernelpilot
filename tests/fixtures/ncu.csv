@@ -1,0 +1,8 @@
+==PROF== Connected to process 42
+"ID","Process ID","Process Name","Host Name","Kernel Name","Context","Stream","Section Name","Metric Name","Metric Unit","Metric Value"
+"1","42","reduction","host","reduce_sum","1","7","GPU Speed Of Light Throughput","gpu__time_duration.sum","us","183.2"
+"1","42","reduction","host","reduce_sum","1","7","GPU Speed Of Light Throughput","gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed","%","81.2"
+"1","42","reduction","host","reduce_sum","1","7","Launch Statistics","launch__registers_per_thread","register/thread","32"
+"1","42","reduction","host","reduce_sum","1","7","Occupancy","sm__warps_active.avg.pct_of_peak_sustained_active","%","62.5"
+"1","42","reduction","host","reduce_sum","1","7","Warp State Statistics","smsp__warp_issue_stalled_long_scoreboard_per_warp_active.pct","%","38.4"
+

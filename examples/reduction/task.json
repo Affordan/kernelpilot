@@ -1,0 +1,34 @@
+{
+  "id": "reduction-fp32",
+  "source": {
+    "root": "examples/reduction",
+    "files": ["reduction.cu"],
+    "kernelName": "reduce_sum"
+  },
+  "build": {
+    "command": { "executable": "nvcc", "args": ["reduction.cu", "-O3", "-o", "reduction.exe"] },
+    "nvccFlags": ["-arch=native"],
+    "architecture": "native"
+  },
+  "validation": {
+    "command": { "executable": "./reduction.exe", "args": ["--validate"] },
+    "atol": 0.05,
+    "rtol": 0.0001
+  },
+  "benchmark": {
+    "command": { "executable": "./reduction.exe", "args": [] },
+    "warmup": 3,
+    "repeat": 20,
+    "timeoutMs": 60000,
+    "bytesPerIteration": 4194304
+  },
+  "profile": {
+    "executable": "ncu",
+    "kernelFilter": "regex:reduce_sum",
+    "metrics": ["gpu__time_duration.sum", "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed", "sm__warps_active.avg.pct_of_peak_sustained_active", "launch__registers_per_thread", "launch__shared_mem_per_block"],
+    "timeoutMs": 180000
+  },
+  "objective": { "kind": "latency", "minimumSpeedup": 1.03, "maximumVariance": 0.0025 },
+  "budget": { "maxIterations": 3, "maxCandidates": 6, "candidatesPerIteration": 2, "timeoutMs": 900000 }
+}
+

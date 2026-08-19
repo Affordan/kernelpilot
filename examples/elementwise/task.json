@@ -1,0 +1,11 @@
+{
+  "id": "elementwise-saxpy-fp32",
+  "source": { "root": "examples/elementwise", "files": ["elementwise.cu"], "kernelName": "elementwise_saxpy" },
+  "build": { "command": { "executable": "nvcc", "args": ["elementwise.cu", "-O3", "-o", "elementwise.exe"] }, "nvccFlags": ["-arch=native"], "architecture": "native" },
+  "validation": { "command": { "executable": "./elementwise.exe", "args": ["--validate"] }, "atol": 0.00001, "rtol": 0.00001 },
+  "benchmark": { "command": { "executable": "./elementwise.exe" }, "warmup": 3, "repeat": 20, "timeoutMs": 60000, "bytesPerIteration": 50331648 },
+  "profile": { "executable": "ncu", "kernelFilter": "regex:elementwise_saxpy", "metrics": ["gpu__time_duration.sum", "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed", "sm__warps_active.avg.pct_of_peak_sustained_active", "launch__registers_per_thread"], "timeoutMs": 180000 },
+  "objective": { "kind": "latency", "minimumSpeedup": 1.03, "maximumVariance": 0.0025 },
+  "budget": { "maxIterations": 3, "maxCandidates": 6, "candidatesPerIteration": 2, "timeoutMs": 900000 }
+}
+
