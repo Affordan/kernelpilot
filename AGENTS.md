@@ -12,6 +12,7 @@ KernelPilot 是 DeepSeek Harness 的独立 CUDA 优化插件。优化核心不�
 - `skills`：CUDA Skills；
 - `examples`：CUDA 示例和任务；
 - `tests`：单元测试和真实 GPU 测试；
+- `web`：本地 Web 控制台静态资源；
 - `docs`：项目文档。
 
 ## 命令
@@ -26,6 +27,7 @@ pnpm test
 pnpm build
 pnpm baseline examples/reduction/task.json
 pnpm test:gpu
+pnpm web
 ```
 
 没有 `nvcc` 或 NVIDIA GPU 时，`test:gpu` 自动跳过。

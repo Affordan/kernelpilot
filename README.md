@@ -1,6 +1,6 @@
 # KernelPilot
 
-KernelPilot 是基于 DeepSeek Harness 的 CUDA Kernel 自动优化工具。当前只提供命令行，不包含 Web 服务或网页界面。
+KernelPilot 是基于 DeepSeek Harness 的 CUDA Kernel 自动优化工具，提供本地 Web 控制台和命令行。
 
 ## DeepSeek Harness 是什么
 
@@ -48,7 +48,29 @@ Windows 下会自动发现 MSVC 和 Nsight Compute。
 pnpm install
 ```
 
-## 检查本机环境
+## 启动 Web 控制台
+
+```powershell
+pnpm web
+```
+
+浏览器访问：
+
+```text
+http://127.0.0.1:4317
+```
+
+页面支持：
+
+- 选择 Reduction 或 Elementwise；
+- 运行环境检查或自动优化；
+- 查看实时日志和运行状态；
+- 取消当前任务；
+- 查看本次服务启动后的历史记录。
+
+服务只监听本机地址，不提供登录和远程访问。
+
+## 命令行检查
 
 无需模型密钥：
 
@@ -58,7 +80,7 @@ pnpm baseline examples/reduction/task.json
 
 该命令会完成真实编译、正确性验证和重复 Benchmark。
 
-## 启动自动优化
+## 命令行自动优化
 
 在 `.env` 中配置：
 

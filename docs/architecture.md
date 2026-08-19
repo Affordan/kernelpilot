@@ -25,6 +25,12 @@ DeepSeek Harness
 │   └── 9 个 CUDA Skills
 └── Session
 
+Web 控制台
+→ 本地 HTTP API
+→ 固定任务白名单
+→ CLI / Harness 子进程
+→ SSE 实时日志
+
 KernelPilot 插件
 → 本地执行后端
 → NVCC / Validator / Benchmark / NCU
@@ -59,5 +65,5 @@ Harness Session 保存模型、工具和子智能体轨迹。
 
 - Harness 仍处于预览阶段，API 可能变化；
 - NCU 指标随 GPU 和版本变化；
-- 当前没有 Web 服务；
+- Web 服务只监听 `127.0.0.1`，历史记录只保存在内存；
 - 模型响应时间取决于上游服务。
