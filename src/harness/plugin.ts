@@ -20,7 +20,7 @@ export interface Config {
 const taskArgumentSchema = z.object({ task_path: z.string().min(1), candidate_id: z.string().min(1).default('baseline') })
 const jsonObjectSchema = { type: 'object', additionalProperties: true } as const
 
-/** Register KernelPilot's five guarded tools and runtime CUDA skills on rc.7 public registries. */
+/** Register KernelPilot's six guarded tools and runtime CUDA skills on rc.7 public registries. */
 export function apply(ctx: Context, config: Config = {}): void {
   const workspaceRoot = path.resolve(config.workspaceRoot ?? process.cwd())
   const stateRoot = config.stateRoot ?? '.kernelpilot'

@@ -10,36 +10,35 @@ The repository targets DeepSeek Harness `0.1.0-rc.7`, verified against upstream 
 - Best-of-2/3 candidate orchestration with compile and correctness hard gates.
 - Robust metric-name-based NCU CSV parser with explicit missing-metric fallback.
 - Allowlisted argv subprocesses, workspace path confinement, timeouts, isolated candidate checkpoints, and rollback.
-- Five Harness tools: `compile_cuda`, `run_benchmark`, `profile_kernel`, `apply_source_patch`, and `validate_kernel`.
+- Six Harness tools: `compile_cuda`, `run_benchmark`, `profile_kernel`, `apply_source_patch`, `validate_kernel`, and authoritative `evaluate_candidate`.
 - Nine progressively loaded CUDA skills.
 - Append-only optimization event log with replay, while Harness Session records model, tool, and subagent activity.
-- Keyless Mock backend plus conditional real-GPU reduction and elementwise tests.
+- A Windows-aware local backend with automatic MSVC discovery and conditional real-GPU reduction and elementwise tests.
 
 ## Quick start
 
-Requires Node 22.19+ and pnpm 11.
+Requires Node 22.19+, pnpm 11, an NVIDIA GPU, CUDA Toolkit with `nvcc`, Nsight Compute with `ncu`, and on Windows Visual Studio C++ Build Tools. KernelPilot discovers the x64 MSVC environment automatically.
 
 ```powershell
 pnpm install
-pnpm typecheck
-pnpm test
-pnpm demo:mock
+pnpm baseline examples/reduction/task.json
 ```
 
-The demo output is explicitly synthetic. Its deterministic result is approximately:
+This compiles the declared source with NVCC, validates it, and prints repeated local benchmark samples. No model or API credential is needed for this baseline check.
 
-```text
-MOCK baseline median: 0.236 ms
-MOCK candidate-vectorized: 0.188 ms, accepted
-MOCK candidate-warp: 0.201 ms, accepted against the then-current best only if it clears the configured gate
-MOCK best: candidate-vectorized, about 1.26x
+To run agent-driven optimization, configure the provider environment expected by the DeepSeek Harness headless profile in `.env`, then run:
+
+```powershell
+pnpm optimize:reduction
+# or
+pnpm optimize:elementwise
 ```
 
-These are fixture values used to validate control flow, not GPU measurements. The JSON report includes every sample, decision, hypothesis, patch, and `mock: true`.
+The launcher loads `.env` into memory, builds the plugin, and starts Harness from `.kernelpilot/launch` so Harness does not parse the project file itself. It never rewrites `.env`. Candidate sources, diffs, checkpoints, NCU reports, and session data stay under `.kernelpilot/`; original example sources are not edited.
 
 ## Harness loading
 
-Pack/install this project into the Harness profile, then apply its additive bundle patch:
+The package also exposes an additive bundle patch for an existing Harness installation:
 
 ```text
 dsh --profile headless --patch ./cordis.patch.yml "Optimize examples/reduction/task.json. Profile the baseline, ask two independent subagents for evidence-backed hypotheses, apply each patch in its own candidate, then compile, validate, benchmark, and select only through the acceptance gate."
@@ -47,16 +46,17 @@ dsh --profile headless --patch ./cordis.patch.yml "Optimize examples/reduction/t
 
 The existing headless/base bundles provide the native Agent Loop, Session persistence, approval policy, sandbox, Skills service, and Subagent providers. KernelPilot adds domain tools and skills. See [architecture](docs/architecture.md) for the verified API mapping and current preview limitations.
 
-## Real GPU example
+## Verification
 
 ```powershell
+pnpm typecheck
+pnpm lint
+pnpm test
 pnpm test:gpu
-nvcc examples/reduction/reduction.cu -O3 -arch=native -o reduction.exe
-./reduction.exe --validate
-./reduction.exe
+pnpm build
 ```
 
-`test:gpu` self-skips without `nvcc` and `nvidia-smi`. No checked-in document claims a real speedup: performance depends on the GPU, clocks, workload, toolchain, and generated candidate.
+`test:gpu` self-skips without `nvcc` and `nvidia-smi`; when available, it uses the production local backend to compile, validate, and benchmark both examples. Performance depends on the GPU, clocks, workload, toolchain, and generated candidate, so only results printed by a local run should be treated as measurements.
 
 ## Task protocol
 
@@ -65,4 +65,3 @@ nvcc examples/reduction/reduction.cu -O3 -arch=native -o reduction.exe
 ## Development
 
 See [AGENTS.md](AGENTS.md) for commands and Definition of Done. Design references: [tool design](docs/tool-design.md), [skills](docs/skills.md), and [evaluation](docs/evaluation.md).
-

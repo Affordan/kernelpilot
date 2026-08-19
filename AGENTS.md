@@ -6,12 +6,12 @@ KernelPilot is an out-of-tree DeepSeek Harness bundle for execution-feedback-dri
 
 - `src/domain`: schemas and durable domain types.
 - `src/core`: statistics, evaluation, context building, event replay, and search orchestration.
-- `src/backends`: real process-backed and deterministic mock execution.
+- `src/backends`: real process-backed local execution and toolchain discovery.
 - `src/harness`: DeepSeek Harness Tool/Skill plugin adapter.
 - `src/ncu`: Nsight Compute parsing.
 - `skills`: progressively loaded CUDA skill bodies.
 - `examples`: CUDA examples and task files.
-- `tests`: unit, mock integration, and conditional GPU tests.
+- `tests`: keyless unit tests and conditional real-GPU tests.
 - `docs`: architecture and operator documentation.
 
 ## Commands
@@ -24,7 +24,7 @@ pnpm typecheck
 pnpm lint
 pnpm test
 pnpm build
-pnpm demo:mock
+pnpm baseline examples/reduction/task.json
 pnpm test:gpu
 ```
 
@@ -37,9 +37,8 @@ pnpm test:gpu
 - Do not download scripts, install system software, change system configuration, or edit another repository.
 - Do not use destructive Git commands. Candidate edits happen in isolated candidate workspaces.
 - Every child process needs an abort signal and timeout; always inspect the exit code.
-- Correctness is a hard gate. Never accept or report speedup from invalid or synthetic data as real GPU performance.
+- Correctness is a hard gate. Never accept or report speedup unless it comes from actual local benchmark samples.
 
 ## Definition of done
 
-A change is complete when focused tests, `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass; documentation reflects behavior; `git diff --check` is clean; mock data is explicitly labeled; and GPU-only behavior is conditionally tested without making CI require a GPU.
-
+A change is complete when focused tests, `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass; documentation reflects behavior; `git diff --check` is clean; and GPU-only behavior is conditionally tested without making CI require a GPU.
