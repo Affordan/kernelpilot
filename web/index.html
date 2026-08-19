@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="KernelPilot 本地 CUDA Kernel 自动优化控制台">
+  <title>KernelPilot · GPU Kernel Optimizer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="KernelPilot 首页">
+      <span class="brand-mark">KP</span>
+      <span><strong>KernelPilot</strong><small>GPU KERNEL OPTIMIZER</small></span>
+    </a>
+    <div class="runtime-badges">
+      <span><i class="status-dot"></i> LOCAL RUNTIME</span>
+      <span>127.0.0.1</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">DEEPSEEK HARNESS / CUDA EXECUTION FEEDBACK</p>
+      <h1 id="page-title">从性能证据到<br><em>可验证优化</em></h1>
+      <p class="intro-copy">在本机完成编译、正确性验证、性能分析和候选选择。所有结果来自真实 GPU。</p>
+    </section>
+
+    <section class="workspace" aria-label="优化工作区">
+      <article class="panel launch-panel">
+        <div class="panel-heading">
+          <span class="step">01</span>
+          <div><h2>启动任务</h2><p>选择算子和执行方式</p></div>
+        </div>
+
+        <fieldset>
+          <legend>优化任务</legend>
+          <div id="task-list" class="task-list" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>运行模式</legend>
+          <div class="mode-switch" role="radiogroup" aria-label="运行模式">
+            <button class="mode active" type="button" data-mode="baseline" role="radio" aria-checked="true">
+              <strong>环境检查</strong><span>编译 · 验证 · Benchmark</span>
+            </button>
+            <button class="mode" type="button" data-mode="optimize" role="radio" aria-checked="false">
+              <strong>自动优化</strong><span>Harness · NCU · 候选搜索</span>
+            </button>
+          </div>
+        </fieldset>
+
+        <div class="launch-actions">
+          <button id="start-button" class="primary-button" type="button"><span>启动运行</span><b>↗</b></button>
+          <button id="cancel-button" class="cancel-button" type="button" hidden>取消</button>
+        </div>
+        <p id="form-message" class="form-message" role="status"></p>
+      </article>
+
+      <article class="panel status-panel">
+        <div class="panel-heading compact">
+          <span class="step">02</span>
+          <div><h2>运行状态</h2><p id="status-caption">等待任务</p></div>
+          <span id="run-status" class="run-status idle">IDLE</span>
+        </div>
+        <div class="run-overview">
+          <div><span>任务</span><strong id="metric-task">—</strong></div>
+          <div><span>模式</span><strong id="metric-mode">—</strong></div>
+          <div><span>耗时</span><strong id="metric-duration">00:00</strong></div>
+          <div><span>日志</span><strong id="metric-lines">0</strong></div>
+        </div>
+        <div class="progress-track" aria-hidden="true"><i id="progress-bar"></i></div>
+        <p class="scope-note">源码修改、报告和可执行文件仅保存在 <code>.kernelpilot/</code></p>
+      </article>
+    </section>
+
+    <section class="terminal-section" aria-labelledby="terminal-title">
+      <div class="section-heading">
+        <div><span class="step">03</span><h2 id="terminal-title">实时终端</h2></div>
+        <button id="clear-button" type="button">清空显示</button>
+      </div>
+      <div class="terminal-window">
+        <div class="terminal-bar"><span></span><span></span><span></span><b>kernelpilot/runtime</b></div>
+        <pre id="terminal" tabindex="0" aria-live="polite"><span class="terminal-muted">等待启动任务…</span></pre>
+      </div>
+    </section>
+
+    <section class="history-section" aria-labelledby="history-title">
+      <div class="section-heading"><div><span class="step">04</span><h2 id="history-title">最近运行</h2></div></div>
+      <div id="history-list" class="history-list"><p class="empty">暂无运行记录</p></div>
+    </section>
+  </main>
+
+  <footer><span>KernelPilot</span><span>命令白名单 · 隔离候选 · 正确性硬门禁</span></footer>
+  <script src="/app.js" defer></script>
+</body>
+</html>

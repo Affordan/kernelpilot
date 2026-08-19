@@ -12,6 +12,16 @@ afterEach(async () => {
 })
 
 describe('KernelPilot Web API', () => {
+  it('serves the web console', async () => {
+    const server = createKernelPilotWebServer({ workspaceRoot: process.cwd() })
+    servers.push(server)
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const port = (server.address() as AddressInfo).port
+    const response = await fetch(`http://127.0.0.1:${port}/`)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('KernelPilot')
+  })
+
   it('lists fixed tasks and completes a run', async () => {
     const server = createKernelPilotWebServer({ workspaceRoot: process.cwd(), launchRun: () => fakeProcess() })
     servers.push(server)
