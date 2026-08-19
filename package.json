@@ -44,6 +44,7 @@
     "optimize": "pnpm build && tsx src/harness-launcher.ts",
     "optimize:reduction": "pnpm optimize examples/reduction/task.json",
     "optimize:elementwise": "pnpm optimize examples/elementwise/task.json",
+    "web": "pnpm build && node dist/web/server.js",
     "start": "node dist/cli.js"
   },
   "dependencies": {
