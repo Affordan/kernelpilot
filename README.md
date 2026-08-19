@@ -10,7 +10,7 @@ The repository targets DeepSeek Harness `0.1.0-rc.7`, verified against upstream 
 - Best-of-2/3 candidate orchestration with compile and correctness hard gates.
 - Robust metric-name-based NCU CSV parser with explicit missing-metric fallback.
 - Allowlisted argv subprocesses, workspace path confinement, timeouts, isolated candidate checkpoints, and rollback.
-- Six Harness tools: `compile_cuda`, `run_benchmark`, `profile_kernel`, `apply_source_patch`, `validate_kernel`, and authoritative `evaluate_candidate`.
+- Seven Harness tools, including atomic `prepare_baseline` and authoritative `evaluate_candidate`, backed by real local execution.
 - Nine progressively loaded CUDA skills.
 - Append-only optimization event log with replay, while Harness Session records model, tool, and subagent activity.
 - A Windows-aware local backend with automatic MSVC discovery and conditional real-GPU reduction and elementwise tests.

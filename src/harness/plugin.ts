@@ -20,7 +20,7 @@ export interface Config {
 const taskArgumentSchema = z.object({ task_path: z.string().min(1), candidate_id: z.string().min(1).default('baseline') })
 const jsonObjectSchema = { type: 'object', additionalProperties: true } as const
 
-/** Register KernelPilot's six guarded tools and runtime CUDA skills on rc.7 public registries. */
+/** Register KernelPilot's seven guarded tools and runtime CUDA skills on rc.7 public registries. */
 export function apply(ctx: Context, config: Config = {}): void {
   const workspaceRoot = path.resolve(config.workspaceRoot ?? process.cwd())
   const stateRoot = config.stateRoot ?? '.kernelpilot'
@@ -42,6 +42,36 @@ export function apply(ctx: Context, config: Config = {}): void {
     }
     return task
   }
+
+  registerTool(ctx, {
+    name: 'prepare_baseline',
+    description: 'Compile, validate, benchmark, and profile the real baseline in one bounded operation.',
+    parameters: taskParameters(),
+    timeoutMs: 480_000,
+    output: output(),
+    async execute(raw, execution) {
+      const args = taskArgumentSchema.parse(raw)
+      if (args.candidate_id !== 'baseline') throw new Error('prepare_baseline only accepts candidate_id "baseline"')
+      const task = await taskFor(args.task_path, execution.signal)
+      const recorded = executionFor(task, 'baseline')
+      const compile = await backend.compile(task, 'baseline', execution.signal)
+      recorded.compile = compile
+      if (!compile.success) throw new Error(`baseline compilation failed: ${tail(compile.stderr || compile.stdout)}`)
+      const validation = await backend.validate(task, 'baseline', execution.signal)
+      recorded.validation = validation
+      if (!validation.passed) throw new Error('baseline correctness validation failed')
+      const benchmark = await backend.benchmark(task, 'baseline', execution.signal)
+      recorded.benchmark = benchmark
+      if (!benchmark.valid) throw new Error('baseline benchmark is invalid')
+      const profile = await backend.profile(task, 'baseline', execution.signal)
+      return {
+        compile: { success: true, durationMs: compile.durationMs, warningCount: compile.warnings.length },
+        validation,
+        benchmark,
+        profile,
+      }
+    },
+  })
 
   registerTool(ctx, {
     name: 'compile_cuda',

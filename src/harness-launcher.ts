@@ -24,6 +24,7 @@ async function main(): Promise<void> {
   const dshPackage = require.resolve('@deepseek-ai/dsh/package.json')
   const dshBin = path.join(path.dirname(dshPackage), 'lib', 'bin.js')
   const prompt = optimizationPrompt(relativeTask, task.id, task.budget.candidatesPerIteration, workspaceRoot, sources)
+  process.stdout.write(`[KernelPilot] Starting DeepSeek Harness for ${task.id}. Runtime artifacts stay under .kernelpilot.\n`)
   const child = spawn(process.execPath, [dshBin, '--profile', 'headless', '--patch', patchPath, prompt], {
     cwd: launchRoot,
     env: process.env,
@@ -76,7 +77,7 @@ function optimizationPrompt(taskPath: string, taskId: string, candidateCount: nu
 
 Follow this execution protocol exactly:
 You have a strict budget of 16 parent tool calls. Do not retry the same failed operation more than once.
-1. Read the task and declared CUDA source. Compile, validate, benchmark, and profile candidate_id "baseline" with KernelPilot tools.
+1. Call prepare_baseline once for candidate_id "baseline". Treat its real compile, validation, benchmark, and profiler results as authoritative; do not repeat those baseline operations.
 2. Use the profiler evidence and load only relevant CUDA skills.
 3. Ask ${candidateCount} independent subagents for different optimization hypotheses. Each must return a hypothesis, expected metric effect, risks, selected skills, and a unified diff touching only task-declared source files.
 4. For each proposal, call apply_source_patch with a unique candidate_id, then compile_cuda and validate_kernel. Run run_benchmark only after both succeed.

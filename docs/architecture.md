@@ -8,7 +8,7 @@ KernelPilot was designed from DeepSeek Harness `0.1.0-rc.7` source at commit `99
 |---|---|---|
 | Composition | Cordis plugin exports `name`, `inject`, and `apply`; `ctx.effect`-owned registries | `src/harness/plugin.ts` is loaded beside core plugins |
 | Distribution | `package.json.dsh.bundle.patch` plus `cordis.patch.yml` | Additive bundle inserts one plugin row |
-| Tools | `ctx.tools.register(ToolDefinition)`; schema enters prompt; calls traverse pre/execute/post waterfalls | Six domain tools return canonical JSON values; evaluation uses recorded tool results |
+| Tools | `ctx.tools.register(ToolDefinition)`; schema enters prompt; calls traverse pre/execute/post waterfalls | Seven domain tools return canonical JSON values; evaluation uses recorded tool results |
 | Skills | `ctx.skills.register(SkillRegistration)`; full bodies load on demand | Nine CUDA skills are registered, never permanently injected into the persona |
 | Subagents | `ctx.subagents` providers plus `@deepseek-ai/dsh-tool-subagent`; headless bundle offers spawn/fork providers | Orchestrator prompt delegates independent hypotheses through native subagent tools |
 | Sandbox | `ctx.sandbox`, sandbox policy, filesystem/subprocess providers, approvals | Harness confines the agent; KernelPilot additionally uses argv allowlists and path checks |
@@ -21,7 +21,7 @@ Harness Agent Loop / native Subagents
               |
        KernelPilot plugin
        /              \
- six guarded tools   nine CUDA skills
+ seven guarded tools  nine CUDA skills
        |
  OptimizationEngine -- CandidatePlanner
        |

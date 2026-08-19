@@ -13,7 +13,7 @@ describe('DeepSeek Harness rc.7 compatibility', () => {
     await ctx.plugin(SkillRegistry)
     await ctx.plugin(KernelPilotPlugin, { workspaceRoot: process.cwd(), stateRoot: '.kernelpilot/tests' })
     expect(ctx.tools.schemas().map(tool => tool.name).sort()).toEqual([
-      'apply_source_patch', 'compile_cuda', 'evaluate_candidate', 'profile_kernel', 'run_benchmark', 'validate_kernel',
+      'apply_source_patch', 'compile_cuda', 'evaluate_candidate', 'prepare_baseline', 'profile_kernel', 'run_benchmark', 'validate_kernel',
     ])
     expect((await ctx.skills.list()).map(skill => skill.name)).toHaveLength(9)
   })
