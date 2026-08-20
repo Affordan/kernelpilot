@@ -77,6 +77,33 @@ describe('KernelPilot Web API', () => {
     })
     expect(foreign.status).toBe(403)
   })
+
+  it('persists validated settings', async () => {
+    const stateRoot = newStateRoot()
+    const origin = await startServer({ stateRoot })
+    const saved = await json(await fetch(`${origin}/api/settings`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'light', logWrap: false, autoScroll: false, retention: 80 }),
+    })) as { theme: string; retention: number }
+    expect(saved).toMatchObject({ theme: 'light', retention: 80 })
+
+    const invalid = await fetch(`${origin}/api/settings`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'light', logWrap: false, autoScroll: false, retention: 2 }),
+    })
+    expect(invalid.status).toBe(400)
+  })
+
+  it('returns diagnostics without credential values', async () => {
+    const origin = await startServer()
+    const response = await fetch(`${origin}/api/system`)
+    expect(response.status).toBe(200)
+    const body = await response.text()
+    const system = JSON.parse(body) as { tools: unknown[]; credentials: { deepseekApiKey: boolean } }
+    expect(system.tools.length).toBeGreaterThan(0)
+    expect(typeof system.credentials.deepseekApiKey).toBe('boolean')
+    expect(body).not.toContain('sk-')
+  })
 })
 
 function newStateRoot(): string {

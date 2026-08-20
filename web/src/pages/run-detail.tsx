@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { jsonRequest, request, useApi } from '../api'
 import { EmptyState, ErrorState, formatDate, formatDuration, LoadingState, modeLabel, PageHeader, StatusBadge } from '../components'
-import type { ArtifactSummary, CandidateAnalysis, RunDetail, RunSummary } from '../types'
+import type { ArtifactSummary, CandidateAnalysis, RunDetail, RunSummary, WebSettings } from '../types'
 
 type Tab = 'summary' | 'logs' | 'candidates' | 'artifacts'
 
@@ -10,6 +10,7 @@ export function RunDetailPage() {
   const { id = '' } = useParams()
   const detail = useApi<RunDetail>(`/api/runs/${id}`)
   const artifacts = useApi<ArtifactSummary[]>(`/api/runs/${id}/artifacts`)
+  const settings = useApi<WebSettings>('/api/settings')
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('summary')
   const [logs, setLogs] = useState('')
@@ -31,7 +32,7 @@ export function RunDetailPage() {
     })
     return () => events.close()
   }, [artifacts.reload, detail.data?.status, detail.reload, id])
-  useEffect(() => { if (terminal.current !== null) terminal.current.scrollTop = terminal.current.scrollHeight }, [logs, tab])
+  useEffect(() => { if (settings.data?.autoScroll !== false && terminal.current !== null) terminal.current.scrollTop = terminal.current.scrollHeight }, [logs, settings.data?.autoScroll, tab])
 
   const visibleLogs = useMemo(() => query.trim() === '' ? logs : logs.split('\n').filter(line => line.toLowerCase().includes(query.trim().toLowerCase())).join('\n'), [logs, query])
 
@@ -55,7 +56,7 @@ export function RunDetailPage() {
           {([['summary','指标'],['logs','日志'],['candidates','候选与 Diff'],['artifacts','产物']] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? 'active' : ''} onClick={() => setTab(value)}>{label}</button>)}
         </div>
         {tab === 'summary' ? <SummaryPanel detail={detail.data} /> : null}
-        {tab === 'logs' ? <article className="panel terminal-panel"><div className="terminal-tools"><div><i /><i /><i /><span>kernelpilot/runtime</span></div><label>搜索日志<input value={query} onChange={event => setQuery(event.target.value)} placeholder="错误或关键字" /></label><a href={`/api/runs/${id}/logs`} download>下载</a><button onClick={() => void navigator.clipboard.writeText(logs)}>复制</button></div><pre ref={terminal} tabIndex={0} aria-label="运行日志">{visibleLogs || '等待输出…'}</pre></article> : null}
+        {tab === 'logs' ? <article className={`panel terminal-panel ${settings.data?.logWrap === false ? 'no-wrap' : ''}`}><div className="terminal-tools"><div><i /><i /><i /><span>kernelpilot/runtime</span></div><label>搜索日志<input value={query} onChange={event => setQuery(event.target.value)} placeholder="错误或关键字" /></label><a href={`/api/runs/${id}/logs`} download>下载</a><button onClick={() => void navigator.clipboard.writeText(logs)}>复制</button></div><pre ref={terminal} tabIndex={0} aria-label="运行日志">{visibleLogs || '等待输出…'}</pre></article> : null}
         {tab === 'candidates' ? <CandidatesPanel candidates={detail.data.analysis.candidates} bestId={detail.data.analysis.bestCandidateId} /> : null}
         {tab === 'artifacts' ? <ArtifactsPanel id={id} artifacts={artifacts.data ?? []} loading={artifacts.loading} error={artifacts.error} retry={artifacts.reload} /> : null}
       </>}

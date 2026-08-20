@@ -4,8 +4,10 @@ import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } fro
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { z } from 'zod'
 import { optimizationTaskSchema, type OptimizationTask } from '../domain/schema.js'
 import { resolveInside, validateTaskPaths } from '../backends/process.js'
+import { resolveNcuExecutable } from '../backends/windows-ncu.js'
 import { appendWebRunEvent, readWebRunEvents, type WebRunEvent } from './run-events.js'
 
 const builtInTasks = [
@@ -50,6 +52,14 @@ interface RunIndex {
   readonly runs: RunRecord[]
 }
 
+const webSettingsSchema = z.object({
+  theme: z.enum(['dark', 'light', 'system']),
+  logWrap: z.boolean(),
+  autoScroll: z.boolean(),
+  retention: z.number().int().min(20).max(500),
+})
+type WebSettings = z.infer<typeof webSettingsSchema>
+
 export interface KernelPilotWebOptions {
   readonly workspaceRoot: string
   readonly publicRoot?: string
@@ -69,7 +79,8 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
   const taskRoot = resolveInside(stateRoot, 'tasks')
   const runRoot = resolveInside(stateRoot, 'runs')
   const indexPath = resolveInside(stateRoot, 'runs.json')
-  const retention = Math.max(20, Math.min(500, options.retention ?? 100))
+  const settingsPath = resolveInside(stateRoot, 'settings.json')
+  let settings: WebSettings = { theme: 'dark', logWrap: true, autoScroll: true, retention: Math.max(20, Math.min(500, options.retention ?? 100)) }
   const tasks = new Map<string, RegisteredTask>()
   const runs: RunRecord[] = []
   let active: ActiveRun | undefined
@@ -93,7 +104,7 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
   const server = createServer((request, response) => {
     void ready.then(async () => await route(request, response)).catch((error: unknown) => {
       if (!response.headersSent) {
-        const status = error instanceof HttpError ? error.status : 500
+        const status = error instanceof HttpError ? error.status : error instanceof z.ZodError ? 400 : 500
         sendJson(response, status, { error: error instanceof Error ? error.message : String(error) })
       } else response.end()
     })
@@ -102,6 +113,7 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
 
   async function initialize(): Promise<void> {
     await Promise.all([mkdir(taskRoot, { recursive: true }), mkdir(runRoot, { recursive: true })])
+    try { settings = webSettingsSchema.parse(JSON.parse(await readFile(settingsPath, 'utf8')) as unknown) } catch (error: unknown) { if (!isMissing(error) && !(error instanceof z.ZodError)) throw error }
     for (const definition of builtInTasks) {
       const task = await readTask(resolveInside(workspaceRoot, definition.taskPath))
       tasks.set(definition.key, { ...definition, builtIn: true, task })
@@ -145,6 +157,23 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
         bestSpeedup: bestSpeedup(runs),
         recentRuns: runs.slice(0, 5).map(publicRun),
       })
+      return
+    }
+    if (request.method === 'GET' && url.pathname === '/api/system') {
+      sendJson(response, 200, await systemSnapshot(workspaceRoot, stateRoot))
+      return
+    }
+    if (request.method === 'GET' && url.pathname === '/api/settings') {
+      sendJson(response, 200, settings)
+      return
+    }
+    if (request.method === 'PUT' && url.pathname === '/api/settings') {
+      assertWriteRequest(request, true)
+      settings = webSettingsSchema.parse(await readJson(request, 16 * 1024))
+      await writeJsonAtomic(settingsPath, settings)
+      await trimRuns()
+      await persistRunsQueued()
+      sendJson(response, 200, settings)
       return
     }
     if (request.method === 'GET' && url.pathname === '/api/tasks') {
@@ -363,7 +392,7 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
   }
 
   async function trimRuns(): Promise<void> {
-    const removed = runs.splice(retention)
+    const removed = runs.splice(settings.retention)
     await Promise.all(removed.flatMap(run => [
       rm(runLogPath(run.id), { force: true }),
       rm(resolveInside(runRoot, `${run.id}.events.jsonl`), { force: true }),
@@ -513,6 +542,97 @@ function assertWriteRequest(request: IncomingMessage, requiresJson: boolean): vo
   const host = request.headers.host
   if (origin !== undefined && host !== undefined && origin !== `http://${host}`) throw new HttpError(403, '请求来源无效')
   if (requiresJson && !request.headers['content-type']?.toLowerCase().startsWith('application/json')) throw new HttpError(415, '仅支持 application/json')
+}
+
+interface DiagnosticItem {
+  readonly key: string
+  readonly name: string
+  readonly status: 'available' | 'missing' | 'error'
+  readonly version?: string
+  readonly detail?: string
+}
+
+async function systemSnapshot(workspaceRoot: string, stateRoot: string): Promise<Record<string, unknown>> {
+  const [gpu, cuda, ncu, msvc] = await Promise.all([
+    diagnostic('gpu', 'NVIDIA GPU', 'nvidia-smi', ['--query-gpu=name,driver_version', '--format=csv,noheader'], workspaceRoot, output => {
+      const [name, version] = output.split(/\r?\n/)[0]?.split(',').map(value => value.trim()) ?? []
+      return { ...(version === undefined ? {} : { version }), ...(name === undefined ? {} : { detail: name }) }
+    }),
+    diagnostic('cuda', 'CUDA Toolkit', 'nvcc', ['--version'], workspaceRoot, output => optionalVersion(/release\s+([\d.]+)/i.exec(output)?.[1])),
+    ncuDiagnostic(workspaceRoot, stateRoot),
+    diagnostic('msvc', 'MSVC Build Tools', 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe', ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'catalog_productDisplayVersion'], workspaceRoot, output => ({ version: output.trim() })),
+  ])
+  const userAgent = process.env.npm_config_user_agent ?? ''
+  const pnpmVersion = /pnpm\/([^\s]+)/.exec(userAgent)?.[1]
+  let envText = ''
+  try { envText = await readFile(path.join(workspaceRoot, '.env'), 'utf8') } catch (error: unknown) { if (!isMissing(error)) throw error }
+  return {
+    platform: `${process.platform} ${process.arch}`,
+    checkedAt: new Date().toISOString(),
+    tools: [
+      gpu, cuda, ncu, msvc,
+      { key: 'node', name: 'Node.js', status: 'available', version: process.version } satisfies DiagnosticItem,
+      { key: 'pnpm', name: 'pnpm', status: pnpmVersion === undefined ? 'missing' : 'available', ...(pnpmVersion === undefined ? {} : { version: pnpmVersion }) } satisfies DiagnosticItem,
+    ],
+    credentials: {
+      deepseekApiKey: hasEnvironmentKey('DEEPSEEK_API_KEY', envText),
+      deepseekBaseUrl: hasEnvironmentKey('DEEPSEEK_BASE_URL', envText),
+    },
+  }
+}
+
+async function ncuDiagnostic(workspaceRoot: string, stateRoot: string): Promise<DiagnosticItem> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12_000)
+  try {
+    const executable = await resolveNcuExecutable('ncu', resolveInside(stateRoot, 'toolchains'), controller.signal)
+    return await diagnostic('ncu', 'Nsight Compute', executable, ['--version'], workspaceRoot, output => optionalVersion(/Version\s+([\d.]+)/i.exec(output)?.[1]))
+  } catch (error) {
+    return { key: 'ncu', name: 'Nsight Compute', status: 'missing', detail: error instanceof Error ? error.message : String(error) }
+  } finally { clearTimeout(timeout) }
+}
+
+async function diagnostic(key: string, name: string, executable: string, args: readonly string[], cwd: string, parse: (output: string) => { version?: string; detail?: string }): Promise<DiagnosticItem> {
+  try {
+    const output = await runDiagnostic(executable, args, cwd)
+    const parsed = parse(output)
+    return { key, name, status: 'available', ...parsed }
+  } catch (error) {
+    return { key, name, status: 'missing', detail: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+function optionalVersion(version: string | undefined): { version?: string } { return version === undefined ? {} : { version } }
+
+async function runDiagnostic(executable: string, args: readonly string[], cwd: string): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const child = spawn(executable, args, { cwd, env: process.env, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const chunks: Buffer[] = []
+    let size = 0
+    let settled = false
+    const timer = setTimeout(() => { child.kill(); finish(new Error(`诊断超时：${path.basename(executable)}`)) }, 12_000)
+    const finish = (error?: Error, output?: string): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (error === undefined) resolve(output ?? '')
+      else reject(error)
+    }
+    const append = (chunk: Buffer): void => {
+      size += chunk.length
+      if (size > 64 * 1024) { child.kill(); finish(new Error('诊断输出过大')); return }
+      chunks.push(chunk)
+    }
+    child.stdout.on('data', append)
+    child.stderr.on('data', append)
+    child.once('error', error => finish(error))
+    child.once('close', code => finish(code === 0 ? undefined : new Error(`${path.basename(executable)} 退出码 ${code ?? -1}`), Buffer.concat(chunks).toString('utf8')))
+  })
+}
+
+function hasEnvironmentKey(key: string, envText: string): boolean {
+  if ((process.env[key] ?? '').trim() !== '') return true
+  return envText.split(/\r?\n/).some(line => line.trim().startsWith(`${key}=`) && line.slice(line.indexOf('=') + 1).trim() !== '')
 }
 
 async function readJson(request: IncomingMessage, maximumBytes: number): Promise<Record<string, unknown>> {

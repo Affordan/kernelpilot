@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, Route, Routes } from 'react-router-dom'
 import { OverviewPage } from './pages/overview'
 import { TasksPage } from './pages/tasks'
@@ -6,6 +6,9 @@ import { RunsPage } from './pages/runs'
 import { RunDetailPage } from './pages/run-detail'
 import { SystemPage } from './pages/system'
 import { SettingsPage } from './pages/settings'
+import { applyTheme } from './pages/settings'
+import { useApi } from './api'
+import type { WebSettings } from './types'
 
 const routes = [
   ['/', '概览', 'OV'],
@@ -17,6 +20,8 @@ const routes = [
 
 function Shell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const settings = useApi<WebSettings>('/api/settings')
+  useEffect(() => { if (settings.data !== undefined) applyTheme(settings.data.theme) }, [settings.data])
   return (
     <div className="app-shell">
       <header className="mobile-header"><NavLink className="brand" to="/"><span className="brand-mark">KP</span><strong>KernelPilot</strong></NavLink><button aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(value => !value)}>{menuOpen ? '关闭' : '菜单'}</button></header>

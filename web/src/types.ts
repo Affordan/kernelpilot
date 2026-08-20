@@ -48,3 +48,11 @@ export interface Overview {
   bestSpeedup: number | null
   recentRuns: RunSummary[]
 }
+export interface WebSettings { theme: 'dark' | 'light' | 'system'; logWrap: boolean; autoScroll: boolean; retention: number }
+export interface DiagnosticItem { key: string; name: string; status: 'available' | 'missing' | 'error'; version?: string; detail?: string }
+export interface SystemSnapshot {
+  platform: string
+  checkedAt: string
+  tools: DiagnosticItem[]
+  credentials: { deepseekApiKey: boolean; deepseekBaseUrl: boolean }
+}
