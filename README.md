@@ -62,13 +62,22 @@ http://127.0.0.1:4317
 
 页面支持：
 
-- 选择 Reduction 或 Elementwise；
-- 运行环境检查或自动优化；
-- 查看实时日志和运行状态；
-- 取消当前任务；
-- 查看本次服务启动后的历史记录。
+- 概览、任务、运行历史、运行详情、系统环境和设置；
+- 导入经过安全校验的自定义任务；
+- 实时日志、指标对比、候选 Diff、NCU 报告和产物下载；
+- 取消、重跑、筛选和持久化历史记录。
 
 服务只监听本机地址，不提供登录和远程访问。
+
+开发前端时分别启动后端和 Vite：
+
+```powershell
+pnpm build
+node dist/web/server.js
+pnpm web:dev
+```
+
+开发页面地址为 `http://127.0.0.1:4318`。
 
 ## 命令行检查
 
@@ -108,6 +117,7 @@ pnpm optimize:elementwise
 - `reports/`：NCU 报告；
 - `workspaces/`：编译目录；
 - `launch/`：Harness 启动目录。
+- `web/`：Web 运行记录、日志、自定义任务和设置。
 
 原始示例源码不会被修改。
 
@@ -119,6 +129,8 @@ pnpm lint
 pnpm test
 pnpm test:gpu
 pnpm build
+pnpm build:web
+pnpm build:site
 ```
 
 `test:gpu` 会使用真实 GPU 编译、验证、Benchmark 和 NCU。缺少 CUDA 环境时自动跳过。
@@ -141,3 +153,9 @@ pnpm build
 - [工具](docs/tool-design.md)
 - [Skills](docs/skills.md)
 - [评估规则](docs/evaluation.md)
+
+## CI/CD
+
+- GitHub Actions 自动执行类型检查、Lint、单测和构建；
+- `master` 的普通 CI 成功后，本机 GPU Runner 执行真实 GPU 测试；
+- Vercel 只部署静态产品站，不运行 CUDA 后端。
