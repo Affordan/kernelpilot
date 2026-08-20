@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm typecheck:site && pnpm build:site",
+  "installCommand": "pnpm --dir site install --frozen-lockfile --ignore-workspace",
+  "buildCommand": "pnpm --dir site typecheck && pnpm --dir site build",
   "outputDirectory": "site/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
