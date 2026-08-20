@@ -40,7 +40,7 @@ export interface KernelPilotWebOptions {
 
 export function createKernelPilotWebServer(options: KernelPilotWebOptions): Server {
   const workspaceRoot = path.resolve(options.workspaceRoot)
-  const publicRoot = path.resolve(options.publicRoot ?? path.join(workspaceRoot, 'web'))
+  const publicRoot = path.resolve(options.publicRoot ?? path.join(workspaceRoot, 'web', 'dist'))
   const runs: RunRecord[] = []
   let active: ActiveRun | undefined
   const launchRun = options.launchRun ?? ((mode, taskPath) => {
@@ -155,11 +155,10 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
       return
     }
     if (request.method === 'GET') {
-      const asset = staticAsset(url.pathname)
+      const asset = await readStaticAsset(publicRoot, url.pathname)
       if (asset !== undefined) {
-        const body = await readFile(path.join(publicRoot, asset.file))
         response.writeHead(200, { 'Content-Type': asset.contentType, 'Cache-Control': 'no-store' })
-        response.end(body)
+        response.end(asset.body)
         return
       }
     }
@@ -205,11 +204,28 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   return value as Record<string, unknown>
 }
 
-function staticAsset(pathname: string): { readonly file: string; readonly contentType: string } | undefined {
-  if (pathname === '/') return { file: 'index.html', contentType: 'text/html; charset=utf-8' }
-  if (pathname === '/app.js') return { file: 'app.js', contentType: 'text/javascript; charset=utf-8' }
-  if (pathname === '/styles.css') return { file: 'styles.css', contentType: 'text/css; charset=utf-8' }
-  return undefined
+async function readStaticAsset(publicRoot: string, pathname: string): Promise<{ readonly body: Buffer; readonly contentType: string } | undefined> {
+  const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1))
+  const candidate = path.resolve(publicRoot, relative)
+  if (path.relative(publicRoot, candidate).startsWith('..')) return undefined
+  try {
+    const body = await readFile(candidate)
+    return { body, contentType: contentType(candidate) }
+  } catch (error: unknown) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+  }
+  if (path.extname(relative) !== '') return undefined
+  return { body: await readFile(path.join(publicRoot, 'index.html')), contentType: 'text/html; charset=utf-8' }
+}
+
+function contentType(file: string): string {
+  const extension = path.extname(file).toLowerCase()
+  if (extension === '.html') return 'text/html; charset=utf-8'
+  if (extension === '.js') return 'text/javascript; charset=utf-8'
+  if (extension === '.css') return 'text/css; charset=utf-8'
+  if (extension === '.svg') return 'image/svg+xml'
+  if (extension === '.json') return 'application/json; charset=utf-8'
+  return 'application/octet-stream'
 }
 
 if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
