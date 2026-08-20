@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
-import { readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { PassThrough } from 'node:stream'
 import { randomUUID } from 'node:crypto'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
@@ -17,7 +18,10 @@ afterEach(async () => {
 
 describe('KernelPilot Web API', () => {
   it('serves the React console and route fallback', async () => {
-    const origin = await startServer()
+    const publicRoot = newStateRoot()
+    await mkdir(publicRoot, { recursive: true })
+    await writeFile(path.join(publicRoot, 'index.html'), '<!doctype html><title>KernelPilot</title>', 'utf8')
+    const origin = await startServer({ publicRoot })
     const [home, route] = await Promise.all([fetch(`${origin}/`), fetch(`${origin}/runs/example`)] )
     expect(home.status).toBe(200)
     expect(route.status).toBe(200)
