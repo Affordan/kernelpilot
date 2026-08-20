@@ -8,7 +8,7 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      parserOptions: { project: ['./tsconfig.json', './web/tsconfig.json'], tsconfigRootDir: import.meta.dirname },
+      parserOptions: { project: ['./tsconfig.json', './web/tsconfig.json', './site/tsconfig.json'], tsconfigRootDir: import.meta.dirname },
     },
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',

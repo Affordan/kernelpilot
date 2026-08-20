@@ -36,9 +36,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:web": "vite build --config web/vite.config.ts",
+    "build:site": "vite build --config site/vite.config.ts",
     "dsh": "dsh",
-    "typecheck": "tsc --noEmit && pnpm typecheck:web",
+    "typecheck": "tsc --noEmit && pnpm typecheck:web && pnpm typecheck:site",
     "typecheck:web": "tsc -p web/tsconfig.json",
+    "typecheck:site": "tsc -p site/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run --exclude tests/gpu/**",
     "test:gpu": "vitest run tests/gpu",
