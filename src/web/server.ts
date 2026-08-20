@@ -585,7 +585,7 @@ async function ncuDiagnostic(workspaceRoot: string, stateRoot: string): Promise<
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
-    const executable = await resolveNcuExecutable('ncu', resolveInside(stateRoot, 'toolchains'), controller.signal)
+    const executable = await resolveNcuExecutable('ncu', stateRoot, controller.signal)
     return await diagnostic('ncu', 'Nsight Compute', executable, ['--version'], workspaceRoot, output => optionalVersion(/Version\s+([\d.]+)/i.exec(output)?.[1]))
   } catch (error) {
     return { key: 'ncu', name: 'Nsight Compute', status: 'missing', detail: error instanceof Error ? error.message : String(error) }
