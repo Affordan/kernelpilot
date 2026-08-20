@@ -294,10 +294,10 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
     const finish = async (status: RunStatus, exitCode: number): Promise<void> => {
       if (finished) return
       finished = true
-      record.status = status
       record.exitCode = exitCode
       record.endedAt = new Date().toISOString()
       await current.persistence
+      record.status = status
       if (mode === 'baseline' && status === 'completed') record.result = parseJsonOutput(await readRunLog(record.id))
       await persistRunsQueued()
       broadcast(current, 'status', publicRun(record))
