@@ -26,7 +26,19 @@ export interface RunSummary {
   result?: unknown
 }
 
-export interface RunDetail extends RunSummary { logs: string }
+export interface WebRunEvent { time: string; type: string; candidateId: string; data: unknown }
+export interface CandidateAnalysis {
+  id: string
+  proposal?: unknown
+  compile?: unknown
+  validation?: unknown
+  benchmark?: unknown
+  profile?: unknown
+  evaluation?: unknown
+}
+export interface RunAnalysis { baseline?: unknown; candidates: CandidateAnalysis[]; bestCandidateId: string | null; bestSpeedup: number | null }
+export interface ArtifactSummary { id: string; name: string; type: 'diff' | 'ncu'; size: number }
+export interface RunDetail extends RunSummary { logs: string; events: WebRunEvent[]; analysis: RunAnalysis }
 export interface RunsResponse { items: RunSummary[]; total: number; nextCursor: string | null }
 export interface Overview {
   activeRun: RunSummary | null

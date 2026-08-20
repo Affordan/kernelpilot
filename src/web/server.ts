@@ -1,11 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { optimizationTaskSchema, type OptimizationTask } from '../domain/schema.js'
 import { resolveInside, validateTaskPaths } from '../backends/process.js'
+import { appendWebRunEvent, readWebRunEvents, type WebRunEvent } from './run-events.js'
 
 const builtInTasks = [
   { key: 'reduction', name: 'Reduction FP32', taskPath: 'examples/reduction/task.json' },
@@ -54,7 +55,7 @@ export interface KernelPilotWebOptions {
   readonly publicRoot?: string
   readonly stateRoot?: string
   readonly retention?: number
-  readonly launchRun?: (mode: RunMode, taskPath: string) => ChildProcessWithoutNullStreams
+  readonly launchRun?: (mode: RunMode, taskPath: string, runId: string) => ChildProcessWithoutNullStreams
 }
 
 class HttpError extends Error {
@@ -74,12 +75,12 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
   let active: ActiveRun | undefined
   let persistChain = Promise.resolve()
 
-  const launchRun = options.launchRun ?? ((mode, taskPath) => {
+  const launchRun = options.launchRun ?? ((mode, taskPath, runId) => {
     const script = mode === 'baseline' ? 'cli.js' : 'harness-launcher.js'
     const args = mode === 'baseline' ? ['baseline', taskPath] : [taskPath]
     const child = spawn(process.execPath, [path.join(workspaceRoot, 'dist', script), ...args], {
       cwd: workspaceRoot,
-      env: process.env,
+      env: { ...process.env, KERNELPILOT_WEB_RUN_ID: runId },
       shell: false,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -212,7 +213,8 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
     const runMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]+)$/)
     if (request.method === 'GET' && runMatch !== null) {
       const record = runById(runMatch[1])
-      sendJson(response, 200, { ...publicRun(record), logs: await readRunLog(record.id) })
+      const events = await readWebRunEvents(workspaceRoot, record.id)
+      sendJson(response, 200, { ...publicRun(record), logs: await readRunLog(record.id), events, analysis: buildAnalysis(events, record.result) })
       return
     }
     const eventMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]+)\/events$/)
@@ -262,6 +264,26 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
       response.end(body)
       return
     }
+    const artifactsMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]+)\/artifacts$/)
+    if (request.method === 'GET' && artifactsMatch !== null) {
+      const record = runById(artifactsMatch[1])
+      const artifacts = await artifactsFor(record)
+      sendJson(response, 200, artifacts.map(({ file: _file, ...artifact }) => artifact))
+      return
+    }
+    const artifactMatch = url.pathname.match(/^\/api\/runs\/([a-f0-9-]+)\/artifacts\/([a-f0-9]{16})$/)
+    if (request.method === 'GET' && artifactMatch !== null) {
+      const record = runById(artifactMatch[1])
+      const artifact = (await artifactsFor(record)).find(item => item.id === artifactMatch[2])
+      if (artifact === undefined) throw new HttpError(404, '产物不存在')
+      response.writeHead(200, {
+        'Content-Type': contentType(artifact.file),
+        'Content-Disposition': `attachment; filename="${artifact.name.replaceAll('"', '')}"`,
+        'Cache-Control': 'no-store',
+      })
+      response.end(await readFile(artifact.file))
+      return
+    }
     if (request.method === 'GET') {
       const asset = await readStaticAsset(publicRoot, url.pathname)
       if (asset !== undefined) {
@@ -282,7 +304,7 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
       id: randomUUID(), task: task.key, taskName: task.name, taskPath: task.taskPath, mode, status: 'running',
       startedAt: new Date().toISOString(), logCount: 0,
     }
-    const processHandle = launchRun(mode, task.taskPath)
+    const processHandle = launchRun(mode, task.taskPath, record.id)
     const current: ActiveRun = { record, process: processHandle, clients: new Set(), persistence: Promise.resolve() }
     active = current
     runs.unshift(record)
@@ -298,7 +320,10 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
       record.endedAt = new Date().toISOString()
       await current.persistence
       record.status = status
-      if (mode === 'baseline' && status === 'completed') record.result = parseJsonOutput(await readRunLog(record.id))
+      if (mode === 'baseline' && status === 'completed') {
+        record.result = parseJsonOutput(await readRunLog(record.id))
+        if (record.result !== undefined) await appendWebRunEvent(workspaceRoot, record.id, 'baseline', 'baseline', record.result)
+      }
       await persistRunsQueued()
       broadcast(current, 'status', publicRun(record))
       for (const client of current.clients) client.end()
@@ -339,7 +364,10 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
 
   async function trimRuns(): Promise<void> {
     const removed = runs.splice(retention)
-    await Promise.all(removed.map(async run => await rm(runLogPath(run.id), { force: true })))
+    await Promise.all(removed.flatMap(run => [
+      rm(runLogPath(run.id), { force: true }),
+      rm(resolveInside(runRoot, `${run.id}.events.jsonl`), { force: true }),
+    ]))
   }
 
   function persistRunsQueued(): Promise<void> {
@@ -354,6 +382,28 @@ export function createKernelPilotWebServer(options: KernelPilotWebOptions): Serv
   function runLogPath(id: string): string { return resolveInside(runRoot, `${id}.log`) }
   async function readRunLog(id: string): Promise<string> {
     try { return await readFile(runLogPath(id), 'utf8') } catch (error: unknown) { if (isMissing(error)) return ''; throw error }
+  }
+
+  async function artifactsFor(record: RunRecord): Promise<Array<{ id: string; name: string; type: 'diff' | 'ncu'; size: number; file: string }>> {
+    const taskId = tasks.get(record.task)?.task.id
+    if (taskId === undefined) return []
+    const roots = [
+      { root: resolveInside(workspaceRoot, `.kernelpilot/diffs/${taskId}`), type: 'diff' as const },
+      { root: resolveInside(workspaceRoot, `.kernelpilot/reports/${taskId}`), type: 'ncu' as const },
+    ]
+    const artifacts: Array<{ id: string; name: string; type: 'diff' | 'ncu'; size: number; file: string }> = []
+    for (const source of roots) {
+      let files: string[]
+      try { files = await readdir(source.root) } catch (error: unknown) { if (isMissing(error)) continue; throw error }
+      for (const name of files) {
+        const file = resolveInside(source.root, name)
+        const metadata = await stat(file)
+        if (!metadata.isFile() || metadata.mtimeMs + 1000 < new Date(record.startedAt).getTime()) continue
+        const id = createHash('sha256').update(`${source.type}:${name}`).digest('hex').slice(0, 16)
+        artifacts.push({ id, name, type: source.type, size: metadata.size, file })
+      }
+    }
+    return artifacts
   }
 }
 
@@ -414,6 +464,32 @@ function parseJsonOutput(text: string): unknown {
   const start = text.indexOf('{')
   if (start < 0) return undefined
   try { return JSON.parse(text.slice(start)) } catch { return undefined }
+}
+
+function buildAnalysis(events: readonly WebRunEvent[], fallback: unknown): Record<string, unknown> {
+  const baselineEvent = events.find(event => event.type === 'baseline')
+  const baseline = baselineEvent?.data ?? fallback
+  const candidateIds = [...new Set(events.filter(event => event.candidateId !== 'baseline').map(event => event.candidateId))]
+  const candidates = candidateIds.map(candidateId => {
+    const candidateEvents = events.filter(event => event.candidateId === candidateId)
+    return {
+      id: candidateId,
+      proposal: candidateEvents.find(event => event.type === 'candidate')?.data,
+      compile: candidateEvents.find(event => event.type === 'compile')?.data,
+      validation: candidateEvents.find(event => event.type === 'validation')?.data,
+      benchmark: candidateEvents.find(event => event.type === 'benchmark')?.data,
+      profile: candidateEvents.find(event => event.type === 'profile')?.data,
+      evaluation: candidateEvents.find(event => event.type === 'evaluation')?.data,
+    }
+  })
+  const accepted = candidates.filter(candidate => typeof candidate.evaluation === 'object' && candidate.evaluation !== null
+    && 'accepted' in candidate.evaluation && candidate.evaluation.accepted === true)
+  const best = accepted.sort((left, right) => numericSpeedup(right.evaluation) - numericSpeedup(left.evaluation))[0]
+  return { baseline, candidates, bestCandidateId: best?.id ?? null, bestSpeedup: best === undefined ? null : numericSpeedup(best.evaluation) }
+}
+
+function numericSpeedup(value: unknown): number {
+  return typeof value === 'object' && value !== null && 'speedup' in value && typeof value.speedup === 'number' ? value.speedup : 0
 }
 
 function bestSpeedup(runs: readonly RunRecord[]): number | null {

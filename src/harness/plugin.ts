@@ -8,6 +8,7 @@ import { LocalExecutionBackend } from '../backends/local.js'
 import { resolveInside, validateTaskPaths } from '../backends/process.js'
 import { evaluateCandidate } from '../core/evaluator.js'
 import { optimizationTaskSchema, type BenchmarkResult, type CompileResult, type OptimizationTask, type ValidationResult } from '../domain/schema.js'
+import { appendWebRunEvent, type WebRunEventType } from '../web/run-events.js'
 
 export const name = 'kernelpilot'
 export const inject = ['tools', 'skills']
@@ -25,6 +26,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   const workspaceRoot = path.resolve(config.workspaceRoot ?? process.cwd())
   const stateRoot = config.stateRoot ?? '.kernelpilot'
   const backend = new LocalExecutionBackend(workspaceRoot, stateRoot)
+  const webRunId = process.env.KERNELPILOT_WEB_RUN_ID
+  const webEvent = async (type: WebRunEventType, candidateId: string, data: unknown): Promise<void> => {
+    if (webRunId !== undefined) await appendWebRunEvent(workspaceRoot, webRunId, type, candidateId, data)
+  }
   const initializedTasks = new Set<string>()
   const executions = new Map<string, { compile?: CompileResult; validation?: ValidationResult; benchmark?: BenchmarkResult }>()
   const executionFor = (task: OptimizationTask, candidateId: string) => {
@@ -64,12 +69,14 @@ export function apply(ctx: Context, config: Config = {}): void {
       recorded.benchmark = benchmark
       if (!benchmark.valid) throw new Error('baseline benchmark is invalid')
       const profile = await backend.profile(task, 'baseline', execution.signal)
-      return {
+      const result = {
         compile: { success: true, durationMs: compile.durationMs, warningCount: compile.warnings.length },
         validation,
         benchmark,
         profile,
       }
+      await webEvent('baseline', 'baseline', result)
+      return result
     },
   })
 
@@ -84,6 +91,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       const task = await taskFor(args.task_path, execution.signal)
       const result = await backend.compile(task, args.candidate_id, execution.signal)
       executionFor(task, args.candidate_id).compile = result
+      await webEvent('compile', args.candidate_id, result)
       return result
     },
   })
@@ -97,6 +105,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       const task = await taskFor(args.task_path, execution.signal)
       const result = await backend.benchmark(task, args.candidate_id, execution.signal)
       executionFor(task, args.candidate_id).benchmark = result
+      await webEvent('benchmark', args.candidate_id, result)
       return result
     },
   })
@@ -110,6 +119,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       const task = await taskFor(args.task_path, execution.signal)
       const result = await backend.validate(task, args.candidate_id, execution.signal)
       executionFor(task, args.candidate_id).validation = result
+      await webEvent('validation', args.candidate_id, result)
       return result
     },
   })
@@ -121,7 +131,9 @@ export function apply(ctx: Context, config: Config = {}): void {
     async execute(raw, execution) {
       const args = taskArgumentSchema.parse(raw)
       const task = await taskFor(args.task_path, execution.signal)
-      return backend.profile(task, args.candidate_id, execution.signal)
+      const result = await backend.profile(task, args.candidate_id, execution.signal)
+      await webEvent('profile', args.candidate_id, result)
+      return result
     },
   })
 
@@ -147,12 +159,14 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (candidate.validation === undefined) throw new Error('candidate has no recorded validation result')
       if (candidate.benchmark === undefined) throw new Error('candidate has no recorded benchmark result')
       if (baseline?.benchmark === undefined) throw new Error('baseline has no recorded benchmark result')
-      return evaluateCandidate(task, {
+      const result = evaluateCandidate(task, {
         baseline: baseline.benchmark,
         compile: candidate.compile,
         validation: candidate.validation,
         benchmark: candidate.benchmark,
       })
+      await webEvent('evaluation', args.candidate_id, result)
+      return result
     },
   })
 
@@ -161,22 +175,34 @@ export function apply(ctx: Context, config: Config = {}): void {
     description: 'Checkpoint declared task sources and apply a candidate unified diff inside an isolated workspace.',
     parameters: {
       type: 'object', additionalProperties: false,
-      properties: { task_path: { type: 'string' }, candidate_id: { type: 'string' }, patch: { type: 'string' } },
+      properties: {
+        task_path: { type: 'string' }, candidate_id: { type: 'string' }, patch: { type: 'string' },
+        hypothesis: { type: 'string' }, expected_effect: { type: 'string' },
+        risks: { type: 'array', items: { type: 'string' } }, selected_skills: { type: 'array', items: { type: 'string' } },
+      },
       required: ['task_path', 'candidate_id', 'patch'],
     },
     timeoutMs: 60_000, output: output(),
     async execute(raw, execution) {
-      const args = z.object({ task_path: z.string().min(1), candidate_id: z.string().regex(/^[a-zA-Z0-9._-]+$/), patch: z.string().min(1) }).parse(raw)
+      const args = z.object({
+        task_path: z.string().min(1), candidate_id: z.string().regex(/^[a-zA-Z0-9._-]+$/), patch: z.string().min(1),
+        hypothesis: z.string().default('model-proposed patch'), expected_effect: z.string().default('measured by the evaluator'),
+        risks: z.array(z.string()).default([]), selected_skills: z.array(z.string()).default([]),
+      }).parse(raw)
       const task = await taskFor(args.task_path, execution.signal)
       await backend.prepareCandidate(task, {
         id: args.candidate_id,
         parentId: 'baseline',
-        hypothesis: 'model-proposed patch',
-        expectedEffect: 'measured by the evaluator',
-        risks: [],
-        selectedSkills: [],
+        hypothesis: args.hypothesis,
+        expectedEffect: args.expected_effect,
+        risks: args.risks,
+        selectedSkills: args.selected_skills,
         patch: args.patch,
       }, execution.signal)
+      await webEvent('candidate', args.candidate_id, {
+        hypothesis: args.hypothesis, expectedEffect: args.expected_effect, risks: args.risks,
+        selectedSkills: args.selected_skills, patch: args.patch,
+      })
       return { success: true, candidateId: args.candidate_id }
     },
   })
